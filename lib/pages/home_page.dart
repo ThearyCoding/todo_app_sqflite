@@ -1,84 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:todo_app_sqflite/models/todo.dart';
-import 'package:todo_app_sqflite/services/todo_service.dart';
+import 'package:todo_app_sqflite/providers/todo_provider.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final List<Todo> _todos = [];
+class _HomePageState extends ConsumerState<HomePage> {
   final TextEditingController _txttitle = TextEditingController();
   final TextEditingController _txtdescription = TextEditingController();
-  final TodoService _todoService = TodoService.instance;
-  @override
-  void initState() {
-    refreshTodo();
-    super.initState();
-  }
-
-  refreshTodo() {
-    _todos.clear();
-    _todoService.readAll().then((todos) {
-      setState(() {
-        _todos.addAll(todos);
-      });
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
+    final todo = ref.watch(todoProvider);
+
     return Scaffold(
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            addTodo();
-          },
-          child: const Icon(Icons.add),
-        ),
-        appBar: AppBar(
-          title: const Text("Todo App"),
-        ),
-        body: _todos.isEmpty
-            ? const Center(
-                child: Text('No have todo task'),
-              )
-            : ListView.builder(
-                itemCount: _todos.length,
-                itemBuilder: (ctx, index) {
-                  final todo = _todos[index];
-                  return Card(
-                    child: ListTile(
-                      onTap: () {
-                        addTodo(todo: todo);
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          addTodo();
+        },
+        child: const Icon(Icons.add),
+      ),
+      appBar: AppBar(
+        title: const Text("Todo App"),
+      ),
+      body: todo.isEmpty
+          ? const Center(
+              child: Text('No have todo task'),
+            )
+          : ListView.builder(
+              itemCount: todo.length,
+              itemBuilder: (ctx, index) {
+                final singleTodo = todo[index];
+                return Card(
+                  child: ListTile(
+                    onTap: () {
+                      addTodo(todo: singleTodo);
+                    },
+                    leading: Checkbox(
+                      value: singleTodo.isCompleted,
+                      onChanged: (value) {
+                        final updatedTodo =
+                            singleTodo.copy(isCompleted: value!);
+                        ref.read(todoProvider.notifier).updateTodo(updatedTodo);
                       },
-                      leading: Checkbox(
-                          value: todo.isCompleted,
-                          onChanged: (value) async {
-                            setState(() {
-                              todo.isCompleted = value!;
-                            });
-                            await _todoService.update(todo);
-                          }),
-                      title: Text(todo.title),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                              onPressed: () async {
-                                setState(() {
-                                  _todos.removeAt(index);
-                                });
-                                await _todoService.delete(todo.id!);
-                              },
-                              icon: const Icon(Icons.delete))
-                        ],
-                      ),
                     ),
-                  );
-                }));
+                    title: Text(singleTodo.title),
+                    trailing: IconButton(
+                      onPressed: () {
+                        ref
+                            .read(todoProvider.notifier)
+                            .removeTodo(singleTodo.id!);
+                      },
+                      icon: const Icon(Icons.delete),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
   }
 
   void addTodo({Todo? todo}) {
@@ -88,53 +72,53 @@ class _HomePageState extends State<HomePage> {
     }
 
     showDialog(
-        context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            title: Text(todo != null ? 'Update Todo' : 'Add Todo'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _txttitle,
-                  decoration:
-                      const InputDecoration(hintText: 'Type todo task title'),
-                ),
-                const SizedBox(
-                  height: 10,
-                ),
-                TextField(
-                  controller: _txtdescription,
-                  decoration: const InputDecoration(
-                      hintText: 'Type todo task description'),
-                ),
-                const SizedBox(
-                  height: 10,
-                ),
-                ElevatedButton(
-                    onPressed: () async {
-                      if (todo != null) {
-                        await _todoService.update(Todo(
-                            id: todo.id,
-                            isCompleted: todo.isCompleted,
-                            title: _txttitle.text,
-                            description: _txtdescription.text));
-                      } else {
-                        await _todoService.create(Todo(
-                            title: _txttitle.text,
-                            description: _txtdescription.text));
-                      }
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(todo != null ? 'Update Todo' : 'Add Todo'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _txttitle,
+                decoration:
+                    const InputDecoration(hintText: 'Type todo task title'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _txtdescription,
+                decoration: const InputDecoration(
+                    hintText: 'Type todo task description'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () {
+                  if (todo != null) {
+                    final updatedTodo = Todo(
+                      id: todo.id,
+                      isCompleted: todo.isCompleted,
+                      title: _txttitle.text,
+                      description: _txtdescription.text,
+                    );
+                    ref.read(todoProvider.notifier).updateTodo(updatedTodo);
+                  } else {
+                    final newTodo = Todo(
+                      title: _txttitle.text,
+                      description: _txtdescription.text,
+                    );
+                    ref.read(todoProvider.notifier).addTodo(newTodo);
+                  }
 
-                      refreshTodo();
-                      if (!mounted) return;
-                      _txttitle.clear();
-                      _txtdescription.clear();
-                      Navigator.pop(context);
-                    },
-                    child: Text(todo != null ? 'Update Todo' : 'Add Todo'))
-              ],
-            ),
-          );
-        });
+                  _txttitle.clear();
+                  _txtdescription.clear();
+                  Navigator.pop(context);
+                },
+                child: Text(todo != null ? 'Update Todo' : 'Add Todo'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

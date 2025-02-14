@@ -14,27 +14,26 @@ class TodoService {
     db!.close();
   }
 
-  Future<Todo> create(Todo todo) async {
+  Future<int?> create(Map<String, dynamic> todo) async {
     final db = await dbHelper.database;
-    final id = await db?.insert(todoTable, todo.toJson());
-    return todo.copy(id: id);
+    final id = await db?.insert(todoTable, todo);
+    return id;
   }
 
-  Future<List<Todo>> readAll() async {
+  Future<List<Map<String, Object?>>?> readAll() async {
     final db = await dbHelper.database;
 
     const orderBy = "createdAt DESC";
 
     final result = await db?.query(todoTable, orderBy: orderBy);
 
-    return result!.map((todo) => Todo.fromJson(todo)).toList();
+    return result;
   }
 
-  Future<int?> update(Todo todo) async {
+  Future<int?> update(int id, Map<String, dynamic> todo) async {
     final db = await dbHelper.database;
 
-    return await db?.update(todoTable, todo.toJson(),
-        where: 'id = ?', whereArgs: [todo.id]);
+    return await db?.update(todoTable, todo, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int?> delete(int id) async {
